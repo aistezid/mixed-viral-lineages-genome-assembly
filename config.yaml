@@ -1,0 +1,12 @@
+# Load SRA list
+sra_list: "sra_list.txt"
+curl_list: "curl_list.txt"
+
+# Read trimming parameters
+min_read_length: 50 # minimum read length 
+quality_threshold: 20 # minimum phred quality treshold
+
+# Variant calling parameters
+min_depth: 10 # minimum number of reads per site
+min_alt_freq: 0.9 # minimum frequency of alternative allele 
+max_freq_for_N: 0.5 # if max nucleotide freq < this -> N

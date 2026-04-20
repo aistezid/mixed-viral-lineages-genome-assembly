@@ -1,0 +1,7 @@
+name: download_unzip
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - curl
+  - gzip 

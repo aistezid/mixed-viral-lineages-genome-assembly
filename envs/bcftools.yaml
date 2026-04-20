@@ -1,0 +1,9 @@
+name: bcftools
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - bcftools
+  - samtools
+  - biopython>=1.79
+  - python=3.11

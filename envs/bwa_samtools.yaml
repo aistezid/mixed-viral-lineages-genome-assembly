@@ -1,0 +1,7 @@
+name: bwa_samtools
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - bwa-mem2
+  - samtools=1.21

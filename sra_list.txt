@@ -1,0 +1,2 @@
+SRR1159181,paired
+SRR18056564,single

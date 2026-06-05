@@ -117,7 +117,7 @@ for segment, positions in ref_index.items():
     offset = 0 ## tracks cumulative coordinate shift from indels
     skip_until = 0
     for position in sorted(positions):
-        if position < skip_until:  ## must be first line inside loop
+        if position < skip_until:
             continue
         
         ref_nt = ref_index[segment][position]
@@ -141,7 +141,7 @@ for segment, positions in ref_index.items():
                 continue
             else:
                 ## indel exists but below threshold — mask and report
-                skip_until = position + len(indel["ref"])  ## still need to skip consumed positions
+                skip_until = position + len(indel["ref"])  ## skip consumed positions
                 seq.append("N")
                 ref_diff_positions.append((     
                     segment, position, indel["ref"], "N",

@@ -143,7 +143,7 @@ for segment, positions in ref_index.items():
                 ## indel exists but below threshold — mask and report
                 skip_until = position + len(indel["ref"])  ## still need to skip consumed positions
                 seq.append("N")
-                ref_diff_positions.append((        ## this was missing in your version
+                ref_diff_positions.append((     
                     segment, position, indel["ref"], "N",
                     indel["depth"],
                     {indel["alt"]: indel["freq"], indel["ref"]: 1 - indel["freq"]},

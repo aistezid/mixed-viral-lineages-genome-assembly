@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-configfile: "config.yaml" ## somehow needed this part
+configfile: "config.yaml" 
 
 REF = "references/wmv6-cms001_028_alco-ref.fasta"
 VCF_DIR = "vcf"
@@ -54,22 +54,6 @@ rule download_fastq_pe:
 		zcat {output.fq2}.gz > {output.fq2}
 		rm {output.fq2}.gz
 		"""
-
-# rule download_sra_pe:
-# 	output:
-# 		"samples/paired/{sample}/{sample}.sra"
-# 	conda:
-# 		"envs/sra_tools.yaml"
-# 	shell:
-# 		"prefetch {wildcards.sample} -O samples/paired"
-
-# rule download_sra_se:
-# 	output:
-# 		"samples/single/{sample}/{sample}.sra"
-# 	conda:
-# 		"envs/sra_tools.yaml"
-# 	shell:
-# 		"prefetch {wildcards.sample} -O samples/single"
 
 rule sra_fastq_pe:
 	output:

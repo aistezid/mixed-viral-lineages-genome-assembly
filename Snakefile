@@ -93,31 +93,8 @@ def get_paired_fastq(wildcards):
 			"fq2": f"samples/paired/sra/{wildcards.sample}/{wildcards.sample}_2.fastq"
 		}
 
-# rule fastqdump_pe:
-# 	input:
-# 		"samples/paired/sra/{sample}/{sample}.sra"
-# 	output:
-# 		fq1="samples/paired/sra/{sample}/{sample}_1.fastq",
-# 		fq2="samples/paired/sra/{sample}/{sample}_2.fastq"
-# 	conda:
-# 		"envs/sra_tools.yaml"
-# 	shell:
-# 		"fastq-dump --split-files {input} --outdir samples/paired/{wildcards.sample}"
-
-# rule fastqdump_se:
-# 	input:
-# 		"samples/single/{sample}/{sample}.sra"
-# 	output:
-# 		"samples/single/{sample}/{sample}.fastq"
-# 	conda:
-# 		"envs/sra_tools.yaml"
-# 	shell:
-# 		"fastq-dump {input} --outdir samples/single/{wildcards.sample}"
-
-rule trim_reads_pe:
+rule fix_pairing_trim_reads_pe: # check if both FASTQ files have the same number of reads before trimming  
 	input:
-		# r1="samples/paired/{sample}/{sample}_1.fastq",
-		# r2="samples/paired/{sample}/{sample}_2.fastq",
 		unpack(get_paired_fastq)
 	output:
 		trimmed_r1="trimmed/paired/{sample}/{sample}_1_trimmed.fastq",
@@ -132,11 +109,31 @@ rule trim_reads_pe:
 		"envs/fastp.yaml"
 	shell:
 		"""
-		mkdir -p trimmed/paired
+		set -euo pipefail
+		mkdir -p trimmed/paired/{wildcards.sample}
+
+		nreads1=$(awk 'END{{print NR/4}}' {input.fq1})
+		nreads2=$(awk 'END{{print NR/4}}' {input.fq2})
+
+		if [ "$nreads1" -ne "$nreads2" ]; then
+			repair.sh \
+				-Xmx8g \
+				in1={input.fq1} \
+				in2={input.fq2} \
+				out1={output.trimmed_r1}.repaired.fq \
+				out2={output.trimmed_r2}.repaired.fq \
+				outs=/dev/null
+
+			IN1={output.trimmed_r1}.repaired.fq
+			IN2={output.trimmed_r2}.repaired.fq
+		else
+			IN1={input.fq1}
+			IN2={input.fq2}
+		fi
 
 		fastp \
-			--in1 {input.fq1} \
-			--in2 {input.fq2} \
+			--in1 "$IN1" \
+			--in2 "$IN2" \
 			--out1 {output.trimmed_r1} \
 			--out2 {output.trimmed_r2} \
 			--thread {threads} \
@@ -243,7 +240,7 @@ rule vcf_calling:
 		samtools depth -a -H {input.bam} > {output.depth}
 		"""
 
-rule analyze_vcfs:
+rule assembly_entropy_report:
 	input:
 		vcf="vcf/{sample}/{sample}.vcf.gz",
 		depth="vcf/{sample}/{sample}.depth.tsv",

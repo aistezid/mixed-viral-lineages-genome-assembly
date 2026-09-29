@@ -45,10 +45,6 @@ with open(depth_file) as f:
         depth_data[segment][pos] = dp
 
 vcf_data = {}
-seg_entropy_sum = {}
-seg_depth_sum = {}
-seg_pos_count = {}
-indel_data = {}
 
 with gzip.open(vcf_file, "rt") as f:
     for line in f:
@@ -76,25 +72,12 @@ with gzip.open(vcf_file, "rt") as f:
             if count > 0:
                 allele_freqs[allele] = count / total_depth
 
-        for allele in alt_nt:
-            if len(allele) != len(ref_nt):  ## any length difference = indel
-                variant_type = "insertion" if len(allele) > len(ref_nt) else "deletion"
-                if segment not in indel_data:
-                    indel_data[segment] = {}
-                indel_data[segment][pos] = {
-                    "type": variant_type,
-                    "ref": ref_nt,
-                    "alt": allele,
-                    "freq": allele_freqs.get(allele, 0),
-                    "depth": total_depth
-                }
-
         if segment not in vcf_data:
             vcf_data[segment] = {}
 
         entropy = 0
         for freq in allele_freqs.values(): ## entropy calculation
-            entropy -= freq * math.log2(freq)
+            entropy -= (freq * math.log2(freq)) / math.log2(4)
 
         vcf_data[segment][pos] = { ## store all calculated info of vcfs in one dict
             "ref": ref_nt,
@@ -104,52 +87,31 @@ with gzip.open(vcf_file, "rt") as f:
             "entropy": entropy
         }
 
-        seg_entropy_sum[segment] = seg_entropy_sum.get(segment, 0) + entropy
-        seg_depth_sum[segment] = seg_depth_sum.get(segment, 0) + total_depth
-        seg_pos_count[segment] = seg_pos_count.get(segment, 0) + 1
+## Entropy/depth accumulation — done over every reference position, not just VCF-called ones,
+## so segments with no VCF sites at all still get a row in the entropy report
+seg_entropy_sum = {seg: 0 for seg in reference_seqs}
+seg_depth_sum = {seg: 0 for seg in reference_seqs}
+seg_pos_count = {seg: 0 for seg in reference_seqs}
 
+for segment, positions in ref_index.items():
+    for position in positions:
+        if segment in vcf_data and position in vcf_data[segment]:
+            entropy = vcf_data[segment][position]["entropy"]
+            depth = vcf_data[segment][position]["depth"]
+        else:
+            depth = depth_data.get(segment, {}).get(position, 0)
+            entropy = 0  # no VCF call = treated as invariant at this position
+        seg_entropy_sum[segment] += entropy
+        seg_depth_sum[segment] += depth
+        seg_pos_count[segment] += 1
 
 ## Sequence assembly 
 new_seq = {}
 ref_diff_positions = []
 for segment, positions in ref_index.items():
     seq = []
-    offset = 0 ## tracks cumulative coordinate shift from indels
-    skip_until = 0
     for position in sorted(positions):
-        if position < skip_until:
-            continue
-        
         ref_nt = ref_index[segment][position]
-
-        ## handle indels before SNP logic
-        if segment in indel_data and position in indel_data[segment]:
-            indel = indel_data[segment][position]
-            indel_read_support = round(indel["freq"] * indel["depth"])
-            min_indel_reads = 2
-
-            if indel["freq"] >= min_alt_freq and indel_read_support >= min_indel_reads:
-                seq.append(indel["alt"])
-                offset += len(indel["alt"]) - len(indel["ref"])
-                skip_until = position + len(indel["ref"])  ## skip ref positions consumed by indel
-                ref_diff_positions.append((
-                    segment, position, indel["ref"], indel["alt"],
-                    indel["depth"],
-                    {indel["alt"]: indel["freq"], indel["ref"]: 1 - indel["freq"]},
-                    {}
-                ))
-                continue
-            else:
-                ## indel exists but below threshold — mask and report
-                skip_until = position + len(indel["ref"])  ## skip consumed positions
-                seq.append("N")
-                ref_diff_positions.append((     
-                    segment, position, indel["ref"], "N",
-                    indel["depth"],
-                    {indel["alt"]: indel["freq"], indel["ref"]: 1 - indel["freq"]},
-                    {}
-                ))
-                continue
 
         if segment not in vcf_data or position not in vcf_data[segment]: ## if nucleotide position is not in vcf
             actual_depth = depth_data.get(segment, {}).get(position, 0) ## get depth from file
@@ -202,18 +164,11 @@ with open(fasta_output, "w") as f:
 
 with open(report_file, "w", newline="") as f:
     writer = csv.writer(f, delimiter="\t")
-    writer.writerow(["sample", "segment", "position", "depth", "reference", "called_nt", "indel_flag",
+    writer.writerow(["sample", "segment", "position", "depth", "reference", "called_nt",
                      "A_freq", "A_depth", "T_freq", "T_depth", "G_freq", "G_depth", "C_freq", "C_depth"])
     for segment, pos, ref, called, depth, alleles, counts in ref_diff_positions:
-        if len(called) > len(ref):
-            indel_flag = "INS"
-        elif len(called) < len(ref) and called != "N":
-            indel_flag = "DEL"
-        else:
-            indel_flag = ""
-            
         writer.writerow([
-            sample_name, segment, pos, depth, ref, called, indel_flag,
+            sample_name, segment, pos, depth, ref, called,
             round(alleles.get("A", 0), 4), counts.get("A", 0),
             round(alleles.get("T", 0), 4), counts.get("T", 0),
             round(alleles.get("G", 0), 4), counts.get("G", 0),
@@ -228,4 +183,5 @@ with open(entropy_report_file, "w", newline="") as f:
         mean_depth = seg_depth_sum[segment] / seg_pos_count[segment]
         writer.writerow([sample_name, segment, mean_entropy, mean_depth])
 
+# command line: jupyter nbconvert --to script Combined.ipynb
 
